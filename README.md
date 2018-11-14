@@ -46,9 +46,11 @@ Emulator of image creation. Images of 1024*1024 are stored as
  Usage:
  
  ~~~
- $> python txm_emulator.py -n 5 -s 0.5
+ $> python txm_emulator.py -n 5 -s 0.5 
  ~~~
  
- -n: number of images to be stored
+ -n: number of images to be stored (int). Default: 1
  
- -s: sleep time between stored images
+ -s: sleep time between stored images (float). Default: 1
+
+ -d: Absolute directory path where images will be stored (str). Default: ""
