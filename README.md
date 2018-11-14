@@ -50,4 +50,5 @@ Emulator of image creation. Images of 1024*1024 are stored as
  ~~~
  
  -n: number of images to be stored
- -s: sleep time between stored images)
+ 
+ -s: sleep time between stored images
