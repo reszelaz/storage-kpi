@@ -12,12 +12,13 @@ class CustomFormatter(argparse.ArgumentDefaultsHelpFormatter,
 class TXMEmulator(object):
     """Emulate BL09 image collection"""
 
-    def emulate(self, num_imgs, sleep_between_images):
+    def emulate(self, num_imgs, sleep_between_images, directory):
         base_name = "img_"
         data_set = "data"
         for i in range(num_imgs):
             image = np.random.randint(0, 65536, size=(1024, 1024))
             h5_filename = base_name + str(i) + ".hdf5"
+            h5_filename = directory + "/" + h5_filename
             f = h5py.File(h5_filename, 'w')
             f.create_dataset(data_set, data=image, dtype=np.uint16)
             #f.flush()
@@ -35,13 +36,14 @@ def main():
                         help='Num images to be written (-s=1).')
     parser.add_argument('-s', '--sleep', type=float, default=1,
                         help='Sleep time between image collection')
-
+    parser.add_argument('-d', '--dirname', type=str, default="",
+                        help='Absolute directory where images will be stored')
     args = parser.parse_args()
 
     print("beginning")
     emultator_obj = TXMEmulator()
     a=time.time()
-    emultator_obj.emulate(args.num_imgs, args.sleep)
+    emultator_obj.emulate(args.num_imgs, args.sleep, args.dirname)
     b = time.time()
     c = b - a
     print("ellapsed time %f" % c)
