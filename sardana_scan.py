@@ -31,7 +31,7 @@ class Scan(object):
         data_desc.append(ColumnDesc(name="point_nb",
                                     label="#Pt No",
                                     dtype="int64"))
-        for i in xrange(self.nb_of_columns):
+        for i in range(self.nb_of_columns):
             data_desc.append(ColumnDesc(name="col%d" % i,
                                         label="col%d" % i,
                                         dtype="float64"))
@@ -55,7 +55,7 @@ class Scan(object):
         time.sleep(self.integ_time)
         data_line = dict()
         data_line["point_nb"] = point_nb
-        for col in xrange(self.nb_of_columns):
+        for col in range(self.nb_of_columns):
             value = random.random() * random.randint(1, 10)
             data_line["col%d" % col] = value
         timestamp = point_nb * random.random()
@@ -63,7 +63,7 @@ class Scan(object):
         return data_line
 
     def run(self):
-        for point_nb in xrange(self.nb_of_points):
+        for point_nb in range(self.nb_of_points):
             data_line = self._acquire(point_nb)
             self.record_list.addRecord(data_line)
 
