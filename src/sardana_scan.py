@@ -100,8 +100,14 @@ def main():
     parser = argparse.ArgumentParser(description=DESCRIPTION)
     parser.add_argument("-f, ", "--file", metavar="file", type=str, nargs="?",
                         required=True, help="File to store the scan data")
+    parser.add_argument("-r, ", "--repeat", metavar="repeat", type=int, nargs="?",
+                        required=False, default=1, help="Number of scan repeats")
     args = parser.parse_args()
     file_ = args.file
+    repeat = args.repeat
+    for i in range(repeat):
+        scan = None
+        print("repeat #{}".format(i+1))
         scan = Scan(file_, 
                     nb_of_columns=(20, 0, 1),
                     integ_time=0.001)
