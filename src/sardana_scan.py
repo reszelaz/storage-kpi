@@ -2,7 +2,9 @@ import time
 import random
 import datetime
 import argparse
+import numpy as np
 
+from sardana.sardanautils import is_non_str_seq
 from sardana.macroserver.recorders.storage import SPEC_FileRecorder
 from sardana.macroserver.scan import ColumnDesc
 from sardana.macroserver.scan.scandata import RecordList, DataHandler
@@ -13,10 +15,17 @@ DESCRIPTION = "Storage Performance Indicator Measurement"
 
 class Scan(object):
 
-    def __init__(self, file_, nb_of_columns=20, nb_of_points=100,
+    def __init__(self, file_, nb_of_columns=(20, 0, 0), nb_of_points=100,
                  integ_time=.1):
         self.file = file_
-        self.nb_of_columns = nb_of_columns
+        if not is_non_str_seq(nb_of_columns):
+            self.nb_of_scalars = nb_of_columns
+            self.nb_of_spectrums = 0
+            self.nb_of_images = 0
+        else:
+            self.nb_of_scalars = nb_of_columns[0]
+            self.nb_of_spectrums = nb_of_columns[1]
+            self.nb_of_images = nb_of_columns[2]
         self.nb_of_points = nb_of_points
         self.integ_time = integ_time
         self.record_list = None
@@ -31,10 +40,18 @@ class Scan(object):
         data_desc.append(ColumnDesc(name="point_nb",
                                     label="#Pt No",
                                     dtype="int64"))
-        for i in range(self.nb_of_columns):
-            data_desc.append(ColumnDesc(name="col%d" % i,
-                                        label="col%d" % i,
+        for i in range(self.nb_of_scalars):
+            data_desc.append(ColumnDesc(name="spectrum%d" % i,
+                                        label="spectrum%d" % i,
                                         dtype="float64"))
+        for i in range(self.nb_of_spectrums):
+            data_desc.append(ColumnDesc(name="spectrum%d" % i,
+                                        label="spectrum%d" % i,
+                                        dtype="(float64, )"))
+        for i in range(self.nb_of_images):
+            data_desc.append(ColumnDesc(name="image%d" % i,
+                                        label="image%d" % i,
+                                        dtype="((float64, ), )"))
         data_desc.append(ColumnDesc(name="timestamp",
                                     label="dt",
                                     dtype="float64"))
@@ -55,9 +72,15 @@ class Scan(object):
         time.sleep(self.integ_time)
         data_line = dict()
         data_line["point_nb"] = point_nb
-        for col in range(self.nb_of_columns):
+        for col in range(self.nb_of_scalars):
             value = random.random() * random.randint(1, 10)
-            data_line["col%d" % col] = value
+            data_line["scalar%d" % col] = value
+        for col in range(self.nb_of_spectrums):
+            value = np.ones(1024, ) * random.random()
+            data_line["spectrum%d" % col] = value
+        for col in range(self.nb_of_images):            
+            value = np.ones((1024, 1024)) * random.random()
+            data_line["image%d" % col] = value
         timestamp = point_nb * random.random()
         data_line["timestamp"] = timestamp
         return data_line
@@ -79,10 +102,9 @@ def main():
                         required=True, help="File to store the scan data")
     args = parser.parse_args()
     file_ = args.file
-    scan = Scan(file_)
-    scan.start()
-    scan.run()
-    scan.end()
+        scan = Scan(file_, 
+                    nb_of_columns=(20, 0, 1),
+                    integ_time=0.001)
 
 
 if __name__ == "__main__":
