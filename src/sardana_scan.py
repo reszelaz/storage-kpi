@@ -1,5 +1,6 @@
 import time
 import math
+import queue
 import psutil
 import random
 import datetime
@@ -7,6 +8,7 @@ import threading
 import os
 import argparse
 import numpy as np
+from concurrent.futures import ThreadPoolExecutor
 
 from sardana.sardanautils import is_non_str_seq
 from sardana.sardanathreadpool import get_thread_pool
@@ -17,6 +19,7 @@ from sardana.macroserver.scan.scandata import RecordList, DataHandler
 
 DESCRIPTION = "Storage Performance Indicator Measurement"
 
+executor = None
 
 def convert_size(size_bytes):
    if size_bytes == 0:
@@ -119,6 +122,48 @@ def scan(file_):
     scan.end()
 
 
+def scan_thread(file_):
+    global executor
+    if executor is None:
+        class Executor(threading.Thread):
+            def __init__(self):                
+                super().__init__()
+                self.daemon = True
+                self._queue = queue.Queue()
+            
+            def run(self):
+                while True:
+                    job, callback, args = self._queue.get()
+                    callback(job(*args))
+            
+            def add(self, job, callback, *args):
+                self._queue.put((job, callback, args))
+
+        executor = Executor()
+        executor.start()    
+
+    scan_done = ScanDone()
+    executor.add(scan, scan_done.set, file_)
+    scan_done.wait()
+
+
+def scan_taurus_thread_pool(file_):
+    global executor
+    if executor is None:
+        from taurus.core.util.threadpool import ThreadPool
+        executor = ThreadPool(Psize=10, daemons=True)
+    scan_done = ScanDone()
+    executor.add(scan, scan_done.set, file_)
+    scan_done.wait()
+
+
+def scan_concurrent_thread_pool(file_):
+    global executor
+    if executor is None:
+        executor = ThreadPoolExecutor(max_workers=10)
+    future = executor.submit(scan, file_)
+    future.result()
+
 class ScanDone:
     
     def __init__(self):
@@ -137,8 +182,8 @@ def main():
                         required=True, help="File to store the scan data")
     parser.add_argument("-r, ", "--repeat", metavar="repeat", type=int, nargs="?",
                         required=False, default=1, help="Number of scan repeats")
-    parser.add_argument("-t, ", "--threaded", metavar="threaded", type=bool, nargs="?",
-                        required=False, default=False, help="Run scan in threads")
+    parser.add_argument("-t, ", "--threaded", metavar="threaded", type=str, nargs="?",
+                        required=False, default="no", help="Run scan in threads using: thread, concurrent, taurus")
     args = parser.parse_args()
     file_ = args.file
     repeat = args.repeat
@@ -151,18 +196,26 @@ def main():
                 convert_size(process.memory_info().rss)
                 )
             )
-        if threaded:
-            scan_done = ScanDone()
-            get_thread_pool().add(scan, scan_done.set, file_)
-            scan_done.wait()
-        else:
+        if threaded == "taurus":
+            scan_taurus_thread_pool(file_)
+        elif threaded == "concurrent":
+            scan_concurrent_thread_pool(file_)
+        elif threaded == "thread":
+            scan_thread(file_)
+        elif threaded == "no":
             scan(file_)
+        else:
+            raise argparse.ArgumentError("unknown argument threaded")
         print(
             "RSS after scan: {}".format(
                 convert_size(process.memory_info().rss)
                 )
             )
-
+    print(
+    "RSS final: {}".format(
+        convert_size(process.memory_info().rss)
+        )
+    )
 
 if __name__ == "__main__":
     main()
