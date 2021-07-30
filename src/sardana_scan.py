@@ -3,11 +3,13 @@ import math
 import psutil
 import random
 import datetime
+import threading
 import os
 import argparse
 import numpy as np
 
 from sardana.sardanautils import is_non_str_seq
+from sardana.sardanathreadpool import get_thread_pool
 from sardana.macroserver.recorders.storage import SPEC_FileRecorder
 from sardana.macroserver.scan import ColumnDesc
 from sardana.macroserver.scan.scandata import RecordList, DataHandler
@@ -107,6 +109,27 @@ class Scan(object):
         self.environ["endtime"] = datetime.datetime.fromtimestamp(ts)
         self.record_list.end()
 
+def scan(file_):
+    scan = Scan(file_, 
+                nb_of_columns=(20, 0, 1),
+                integ_time=0.001
+                )
+    scan.start()
+    scan.run()
+    scan.end()
+
+
+class ScanDone:
+    
+    def __init__(self):
+        self._event = threading.Event()
+    
+    def set(self, _):
+        self._event.set()
+    
+    def wait(self):
+        self._event.wait()
+
 
 def main():
     parser = argparse.ArgumentParser(description=DESCRIPTION)
@@ -114,24 +137,26 @@ def main():
                         required=True, help="File to store the scan data")
     parser.add_argument("-r, ", "--repeat", metavar="repeat", type=int, nargs="?",
                         required=False, default=1, help="Number of scan repeats")
+    parser.add_argument("-t, ", "--threaded", metavar="threaded", type=bool, nargs="?",
+                        required=False, default=False, help="Run scan in threads")
     args = parser.parse_args()
     file_ = args.file
     repeat = args.repeat
+    threaded = args.threaded
     process = psutil.Process(os.getpid())
     for i in range(repeat):
-        scan = None
         print("repeat #{}".format(i+1))
         print(
             "RSS before scan: {}".format(
                 convert_size(process.memory_info().rss)
                 )
             )
-        scan = Scan(file_, 
-                    nb_of_columns=(20, 0, 1),
-                    integ_time=0.001)
-        scan.start()
-        scan.run()
-        scan.end()
+        if threaded:
+            scan_done = ScanDone()
+            get_thread_pool().add(scan, scan_done.set, file_)
+            scan_done.wait()
+        else:
+            scan(file_)
         print(
             "RSS after scan: {}".format(
                 convert_size(process.memory_info().rss)
