@@ -1,6 +1,9 @@
 import time
+import math
+import psutil
 import random
 import datetime
+import os
 import argparse
 import numpy as np
 
@@ -12,6 +15,15 @@ from sardana.macroserver.scan.scandata import RecordList, DataHandler
 
 DESCRIPTION = "Storage Performance Indicator Measurement"
 
+
+def convert_size(size_bytes):
+   if size_bytes == 0:
+       return "0B"
+   size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+   i = int(math.floor(math.log(size_bytes, 1024)))
+   p = math.pow(1024, i)
+   s = round(size_bytes / p, 2)
+   return "%s %s" % (s, size_name[i])
 
 class Scan(object):
 
@@ -105,12 +117,26 @@ def main():
     args = parser.parse_args()
     file_ = args.file
     repeat = args.repeat
+    process = psutil.Process(os.getpid())
     for i in range(repeat):
         scan = None
         print("repeat #{}".format(i+1))
+        print(
+            "RSS before scan: {}".format(
+                convert_size(process.memory_info().rss)
+                )
+            )
         scan = Scan(file_, 
                     nb_of_columns=(20, 0, 1),
                     integ_time=0.001)
+        scan.start()
+        scan.run()
+        scan.end()
+        print(
+            "RSS after scan: {}".format(
+                convert_size(process.memory_info().rss)
+                )
+            )
 
 
 if __name__ == "__main__":
