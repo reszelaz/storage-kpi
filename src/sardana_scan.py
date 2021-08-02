@@ -33,7 +33,7 @@ def convert_size(size_bytes):
 class Scan(object):
 
     def __init__(self, file_, nb_of_columns=(20, 0, 0), nb_of_points=100,
-                 integ_time=.1):
+                 integ_time=.1, pandas=False):
         self.file = file_
         if not is_non_str_seq(nb_of_columns):
             self.nb_of_scalars = nb_of_columns
@@ -47,6 +47,7 @@ class Scan(object):
         self.integ_time = integ_time
         self.record_list = None
         self.environ = dict()
+        self._pandas = pandas
 
     def _prepare_environ(self):
         self.environ = dict()
@@ -81,8 +82,40 @@ class Scan(object):
         data_handler = DataHandler()
         data_handler.addRecorder(spec_recorder)
         self._prepare_environ()
-        self.record_list = RecordList(data_handler,
-                                      self.environ)
+        if self._pandas:
+            import pandas as pd
+            class PandasRecordList:
+
+                def __init__(self, datahandler, environ=None, apply_interpolation=False,
+                            apply_extrapolation=False, initial_data=None):
+                    self.datahandler = datahandler
+                    self.environ = environ
+                    self.records = None
+                
+                def getEnvironValue(self, name):
+                    return self.environ[name]
+
+                def getEnviron(self):
+                    return self.environ
+                
+                def start(self):
+                    columns = [dd.name for dd in self.environ["datadesc"]]
+                    self.records = pd.DataFrame(columns=columns)
+                    self.datahandler.startRecordList(self)
+
+
+                def addRecord(self, record):
+                    self.records = self.records.append(record, ignore_index=True)
+
+                def end(self):
+                    self.datahandler.endRecordList(self)
+                    self.records = None
+
+            self.record_list = PandasRecordList(data_handler,
+                                                self.environ)
+        else:
+            self.record_list = RecordList(data_handler,
+                                          self.environ)
         self.record_list.start()
 
     def _acquire(self, point_nb):
@@ -112,17 +145,17 @@ class Scan(object):
         self.environ["endtime"] = datetime.datetime.fromtimestamp(ts)
         self.record_list.end()
 
-def scan(file_):
+def scan(file_, pandas=False):
     scan = Scan(file_, 
                 nb_of_columns=(20, 0, 1),
-                integ_time=0.001
-                )
+                integ_time=0.001,
+                pandas=pandas)
     scan.start()
     scan.run()
     scan.end()
 
 
-def scan_thread(file_):
+def scan_thread(file_, pandas=False):
     global executor
     if executor is None:
         class Executor(threading.Thread):
@@ -143,25 +176,25 @@ def scan_thread(file_):
         executor.start()    
 
     scan_done = ScanDone()
-    executor.add(scan, scan_done.set, file_)
+    executor.add(scan, scan_done.set, file_, pandas)
     scan_done.wait()
 
 
-def scan_taurus_thread_pool(file_):
+def scan_taurus_thread_pool(file_, pandas=False):
     global executor
     if executor is None:
         from taurus.core.util.threadpool import ThreadPool
         executor = ThreadPool(Psize=10, daemons=True)
     scan_done = ScanDone()
-    executor.add(scan, scan_done.set, file_)
+    executor.add(scan, scan_done.set, file_, pandas)
     scan_done.wait()
 
 
-def scan_concurrent_thread_pool(file_):
+def scan_concurrent_thread_pool(file_, pandas=False):
     global executor
     if executor is None:
         executor = ThreadPoolExecutor(max_workers=10)
-    future = executor.submit(scan, file_)
+    future = executor.submit(scan, file_, pandas)
     future.result()
 
 class ScanDone:
@@ -184,10 +217,13 @@ def main():
                         required=False, default=1, help="Number of scan repeats")
     parser.add_argument("-t, ", "--threaded", metavar="threaded", type=str, nargs="?",
                         required=False, default="no", help="Run scan in threads using: thread, concurrent, taurus")
+    parser.add_argument("-p, ", "--pandas", metavar="pandas", type=bool, nargs="?",
+                        required=False, default=False, help="Use pandas implementation of RecordList")
     args = parser.parse_args()
     file_ = args.file
     repeat = args.repeat
     threaded = args.threaded
+    pandas = args.pandas
     process = psutil.Process(os.getpid())
     for i in range(repeat):
         print("repeat #{}".format(i+1))
@@ -197,13 +233,13 @@ def main():
                 )
             )
         if threaded == "taurus":
-            scan_taurus_thread_pool(file_)
+            scan_taurus_thread_pool(file_, pandas)
         elif threaded == "concurrent":
-            scan_concurrent_thread_pool(file_)
+            scan_concurrent_thread_pool(file_, pandas)
         elif threaded == "thread":
-            scan_thread(file_)
+            scan_thread(file_, pandas)
         elif threaded == "no":
-            scan(file_)
+            scan(file_, pandas)
         else:
             raise argparse.ArgumentError("unknown argument threaded")
         print(
