@@ -226,11 +226,14 @@ def main():
                         required=False, default="no", help="Run scan in threads using: thread, concurrent, taurus")
     parser.add_argument("-p, ", "--pandas", metavar="pandas", type=bool, nargs="?",
                         required=False, default=False, help="Use pandas implementation of RecordList")
+    parser.add_argument("-j, ", "--join", metavar="join", type=bool, nargs="?",
+                        required=False, default=False, help="Join/Shutdown executor (if any) and call gc.collect()")
     args = parser.parse_args()
     file_ = args.file
     repeat = args.repeat
     threaded = args.threaded
     pandas = args.pandas
+    join = args.join
     process = psutil.Process(os.getpid())
     for i in range(repeat):
         print("repeat #{}".format(i+1))
@@ -254,6 +257,16 @@ def main():
                 convert_size(process.memory_info().rss)
                 )
             )
+    if join:
+        global executor
+        if executor is not None:
+            try:
+                executor.join()
+            except AttributeError:
+                executor.shutdown()
+            executor = None
+    time.sleep(3)
+    import gc; gc.collect()
     print(
     "RSS final: {}".format(
         convert_size(process.memory_info().rss)
