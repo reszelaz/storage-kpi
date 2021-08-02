@@ -146,6 +146,7 @@ class Scan(object):
         self.record_list.end()
 
 def scan(file_, pandas=False):
+    print("Scan run in {}".format(threading.get_ident()))
     scan = Scan(file_, 
                 nb_of_columns=(20, 0, 1),
                 integ_time=0.001,
@@ -167,10 +168,16 @@ def scan_thread(file_, pandas=False):
             def run(self):
                 while True:
                     job, callback, args = self._queue.get()
+                    if job is None:
+                        break
                     callback(job(*args))
             
             def add(self, job, callback, *args):
                 self._queue.put((job, callback, args))
+            
+            def join(self):
+                self._queue.put((None, None, None))
+                super().join()
 
         executor = Executor()
         executor.start()    
