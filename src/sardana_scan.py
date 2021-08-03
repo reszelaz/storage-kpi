@@ -30,6 +30,18 @@ def convert_size(size_bytes):
    s = round(size_bytes / p, 2)
    return "%s %s" % (s, size_name[i])
 
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 class Scan(object):
 
     def __init__(self, file_, nb_of_columns=(20, 0, 0), nb_of_points=100,
@@ -224,7 +236,7 @@ def main():
                         required=False, default=1, help="Number of scan repeats")
     parser.add_argument("-t, ", "--threaded", metavar="threaded", type=str, nargs="?",
                         required=False, default="no", help="Run scan in threads using: thread, concurrent, taurus")
-    parser.add_argument("-p, ", "--pandas", metavar="pandas", type=bool, nargs="?",
+    parser.add_argument("-p, ", "--pandas", metavar="pandas", type=str2bool, nargs="?",
                         required=False, default=False, help="Use pandas implementation of RecordList")
     parser.add_argument("-j, ", "--join", metavar="join", type=bool, nargs="?",
                         required=False, default=False, help="Join/Shutdown executor (if any) and call gc.collect()")
